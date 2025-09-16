@@ -13,7 +13,7 @@ RUN gcc -static -o membarrier_check membarrier_check.c
 RUN strip membarrier_check
 
 # Pull base image.
-FROM jlesage/baseimage-gui:alpine-3.22-v4.9.0
+FROM jlesage/baseimage-gui:debian-12-v4.9.0
 
 # Docker image version is provided via build arg.
 ARG DOCKER_IMAGE_VERSION=
@@ -28,11 +28,17 @@ ARG CAMOUFOX_PYPI_VERSION=0.4.11
 # Define working directory.
 WORKDIR /tmp
 
+# Avoid interactive prompts from apt.
+ARG DEBIAN_FRONTEND=noninteractive
+
 # Install system dependencies.
 RUN \
-    add-pkg \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
         python3 \
-        py3-pip
+        python3-pip \
+    && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install Camoufox and Playwright runtime.
 ENV \
@@ -51,18 +57,16 @@ RUN \
 
 # Install extra packages.
 RUN \
-    add-pkg \
-        # WebGL support.
-        mesa-dri-gallium \
-        # Audio support.
-        libpulse \
-        # Icons used by folder/file selection window (when saving as).
+    apt-get update && \
+    # WebGL support, audio, icons, fonts, and automation helpers.
+    apt-get install -y --no-install-recommends \
+        libgl1-mesa-dri \
+        libpulse0 \
         adwaita-icon-theme \
-        # A font is needed.
-        font-dejavu \
-        # The following package is used to send key presses to the X process.
+        fonts-dejavu-core \
         xdotool \
-        && \
+    && \
+    rm -rf /var/lib/apt/lists/* && \
     # Remove unneeded icons.
     find /usr/share/icons/Adwaita -type d -mindepth 1 -maxdepth 1 -not -name 16x16 -not -name scalable -exec rm -rf {} ';' && \
     true

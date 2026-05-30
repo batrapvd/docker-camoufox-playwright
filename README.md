@@ -13,6 +13,7 @@ interface or automate it using Playwright's WebSocket server.
 - ✅ Works on x86_64 and arm64 VPS hosts – the container fetches the matching Camoufox build at runtime.
 - ✅ Web UI available over noVNC or VNC clients; persistent profile stored under `/config/profile`.
 - ✅ Optional Playwright server mode for remote automation clients.
+- ✅ Built-in container health checks for monitoring and orchestration.
 
 ## Quick start
 
@@ -113,6 +114,91 @@ Both `jlesage/baseimage-gui` and Camoufox publish multi-architecture builds. Whe
 detects the runtime architecture (`x86_64`, `arm64`, `i686`) and downloads the matching bundle. Ensure outbound HTTPS access
 to `github.com` so the download can succeed the first time.
 
+## Container Health Checks
+
+This image includes built-in health checks that monitor the container's essential services. Docker and container orchestrators (like Kubernetes) can use these health checks to automatically restart or replace unhealthy containers.
+
+### How it works
+
+The container performs the following health checks every 30 seconds:
+
+1. **noVNC Web Interface (port 5800)** – Verifies the HTML5 remote desktop interface is listening
+2. **VNC Server (port 5900)** – Checks the VNC protocol endpoint is active
+3. **Playwright/Display Server** – In GUI mode, validates X11 display; in server mode, verifies the Playwright process
+4. **Service Supervisor** – Confirms the init system (s6/runit) is operational
+
+If any check fails, it is retried up to 3 times. After 3 consecutive failures over 90 seconds, the container is marked as unhealthy.
+
+### Monitoring health status
+
+You can view the container's health status using Docker:
+
+```bash
+# Check current health status
+docker inspect --format='{{.State.Health.Status}}' <container-id>
+
+# View health check logs
+docker inspect --format='{{json .State.Health}}' <container-id> | jq
+```
+
+### Integration with Docker Compose
+
+When using Docker Compose, health status is automatically tracked. You can reference it in dependent services:
+
+```yaml
+version: '3'
+services:
+  camoufox:
+    image: ghcr.io/batrapvd/docker-camoufox-playwright:latest
+    ports:
+      - "5800:5800"
+      - "5900:5900"
+    volumes:
+      - ./config:/config
+
+  automation-client:
+    image: my-automation-app:latest
+    depends_on:
+      camoufox:
+        condition: service_healthy
+    environment:
+      - CAMOUFOX_URL=http://camoufox:5800
+```
+
+### Integration with Kubernetes
+
+In Kubernetes, configure a startup probe and liveness probe:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: camoufox
+spec:
+  containers:
+  - name: camoufox
+    image: ghcr.io/batrapvd/docker-camoufox-playwright:latest
+    ports:
+    - containerPort: 5800
+      name: novnc
+    - containerPort: 5900
+      name: vnc
+    livenessProbe:
+      exec:
+        command:
+        - /usr/local/bin/healthcheck.sh
+      initialDelaySeconds: 30
+      periodSeconds: 30
+      timeoutSeconds: 10
+      failureThreshold: 3
+    startupProbe:
+      exec:
+        command:
+        - /usr/local/bin/healthcheck.sh
+      failureThreshold: 30
+      periodSeconds: 10
+```
+
 ## Troubleshooting
 
 - **membarrier system call**: Camoufox inherits Firefox's requirement for the `membarrier` syscall. If you are running Docker `< 20.10`, either
@@ -122,6 +208,7 @@ to `github.com` so the download can succeed the first time.
   direct access to `addons.mozilla.org`, set `CAMOUFOX_DISABLE_DEFAULT_ADDONS=1` in a custom image or provide your own add-ons via `CAMOUFOX_CONFIG_JSON`.
 - **Playwright connection refused**: when using server mode behind NAT, map the dynamic WebSocket port (`--network host` or `-p <hostPort>:<containerPort>`) or
   configure a reverse proxy.
+- **Container marked unhealthy**: If the container is repeatedly marked as unhealthy, check the logs with `docker logs <container-id>` and verify that ports 5800 and 5900 are not blocked or in use by other services.
 
 ## Support
 

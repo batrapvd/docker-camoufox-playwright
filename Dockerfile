@@ -63,7 +63,7 @@ RUN \
 # Install extra packages.
 RUN \
     apt-get update && \
-    # WebGL support, audio, icons, fonts, and automation helpers.
+    # WebGL support, audio, icons, fonts, automation helpers, and healthcheck utilities.
     apt-get install -y --no-install-recommends \
         libgtk-3-0 \
         libgl1-mesa-dri \
@@ -72,6 +72,8 @@ RUN \
         adwaita-icon-theme \
         fonts-dejavu-core \
         xdotool \
+        curl \
+        netcat-openbsd \
     && \
     rm -rf /var/lib/apt/lists/* && \
     # Remove unneeded icons.
@@ -108,6 +110,9 @@ COPY --from=membarrier /tmp/membarrier_check /usr/bin/
 # Ensure init scripts are executable
 RUN chmod -R a+rx /etc/cont-init.d || true
 
+# Make healthcheck script executable
+RUN chmod +x /usr/local/bin/healthcheck.sh || true
+
 # Set internal environment variables.
 RUN \
     set-cont-env APP_NAME "Camoufox" && \
@@ -120,6 +125,12 @@ ENV \
     FF_OPEN_URL= \
     FF_KIOSK=0 \
     FF_CUSTOM_ARGS=
+
+# Add HEALTHCHECK directive for container orchestration and monitoring.
+# Checks are performed every 30 seconds with a 10-second timeout.
+# Container is marked unhealthy after 3 consecutive failures.
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD /usr/local/bin/healthcheck.sh
 
 # Metadata.
 LABEL \

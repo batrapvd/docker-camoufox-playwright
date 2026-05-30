@@ -24,6 +24,39 @@ app:
     category: "Tools:"
   documentation:
     sections:
+      - title: Container Health Checks
+        level: 2
+        content: |-
+          {{ app.friendly_name }} includes built-in health checks that monitor critical container services.
+          Docker and orchestrators like Kubernetes can use these checks to automatically restart or replace
+          unhealthy containers.
+
+          The health check runs every 30 seconds and validates:
+            - noVNC web interface (port 5800) is responding
+            - VNC server (port 5900) is listening
+            - X11 display or Playwright server is operational
+            - Service supervisor (init system) is active
+
+          After 3 consecutive failures, the container is marked as unhealthy.
+
+          **View health status:**
+          ```
+          docker inspect --format='{{.State.Health.Status}}' <container-id>
+          ```
+
+          **Docker Compose integration:**
+          ```yaml
+          services:
+            camoufox:
+              image: ghcr.io/batrapvd/docker-camoufox-playwright:latest
+            my-app:
+              depends_on:
+                camoufox:
+                  condition: service_healthy
+          ```
+
+          **Kubernetes integration:**
+          Use the `/usr/local/bin/healthcheck.sh` script in your liveness and startup probes.
       - title: Allowing the membarrier System Call
         level: 2
         content: |-
@@ -112,6 +145,14 @@ app:
               for more details.
             - Make sure the kernel of your Linux distribution is up-to-date.
   changelog:
+    - version: 25.11.0
+      date: 2026-05-30
+      changes:
+        - 'Added built-in HEALTHCHECK support for Docker and Kubernetes monitoring.'
+        - 'Container health is verified every 30 seconds by checking noVNC, VNC, and display services.'
+        - 'Added healthcheck.sh script with comprehensive service validation.'
+        - 'Integrated curl and netcat-openbsd utilities for health monitoring.'
+        - 'Added documentation for Docker Compose and Kubernetes integration with health checks.'
     - version: 25.10.0
       date: 2025-10-16
       changes:
@@ -287,7 +328,7 @@ app:
       date: 2023-02-13
       changes:
         - 'Updated baseimage to version 4.3.6, which brings the following changes:'
-        - '2:Limit the maximum number of opened files on system having a very large, unlimited value. This prevents unnecessary waste of CPU resources and time for applications trying to close all possible file descriptors.'
+        - '2:Limit the maximum number of opened files on system having a very large, unlimited value. This prevents unnecessary waste of CPU resources and time for applications trying to close al[...]
         - 'Added default preference to prevent closing Firefox when closing the last tab.'
     - version: 23.02.2
       date: 2023-02-08
@@ -312,7 +353,7 @@ app:
     - version: 22.12.2
       date: 2022-12-11
       changes:
-        - 'Implemented workaround for issue seen with Synology devices where container would not start after an image update.  The problem is caused by Synology explicitly setting all environment variables and keeping values from the old version.'
+        - 'Implemented workaround for issue seen with Synology devices where container would not start after an image update.  The problem is caused by Synology explicitly setting all environment[...]
     - version: 22.12.1
       date: 2022-12-09
       changes:
